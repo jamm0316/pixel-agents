@@ -60,6 +60,14 @@ export function App() {
       setZoom(handle.getZoom());
       handle.onSelect((sel) => dispatch({ kind: 'select', sel }));
       handle.onPermissionChoice((id, decision) => respondPermission(id, decision));
+      handle.onAgentArrivedAtDesk((sessionId, agentName) => {
+        dispatch({
+          kind: 'agent-arrived-at-desk',
+          sessionId,
+          agentName,
+          timestamp: Date.now(),
+        });
+      });
     })();
     return () => {
       cancelled = true;

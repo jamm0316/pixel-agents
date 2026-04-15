@@ -50,4 +50,7 @@ export type StreamEvent =
   | { kind: 'agent-tool-end'; sessionId: string; agentName: string; toolCallId: string; status: 'done' | 'error'; timestamp: number }
   | { kind: 'agent-stop'; sessionId: string; agentName: string; timestamp: number }
   | { kind: 'permission-request'; req: PermissionRequest }
-  | { kind: 'permission-resolved'; requestId: string; decision: 'allow' | 'deny' };
+  | { kind: 'permission-resolved'; requestId: string; decision: 'allow' | 'deny' }
+  // UI-only event: dispatched by PixiApp when the character physically reaches its desk.
+  // Never produced by the server; promotes walking_to_desk -> working.
+  | { kind: 'agent-arrived-at-desk'; sessionId: string; agentName: string; timestamp: number };

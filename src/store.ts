@@ -81,13 +81,20 @@ export function applyEvent(prev: AppState, evt: StreamEvent): AppState {
     }
     case 'agent-start': {
       const a = ensureAgent(state, evt.sessionId, evt.agentName);
-      a.state = 'working';
+      // Only enter walking_to_desk if we're not already seated or en route.
+      if (a.state !== 'working' && a.state !== 'walking_to_desk') {
+        a.state = 'walking_to_desk';
+      }
       a.lastEventAt = evt.timestamp;
       break;
     }
     case 'agent-tool': {
       const a = ensureAgent(state, evt.sessionId, evt.agentName);
-      a.state = 'working';
+      // If the agent is already seated (working), stay working.
+      // Otherwise route them to the desk first.
+      if (a.state !== 'working' && a.state !== 'walking_to_desk') {
+        a.state = 'walking_to_desk';
+      }
       a.currentTool = evt.tool;
       a.currentInputSummary = evt.inputSummary;
       a.lastEventAt = evt.timestamp;
@@ -117,6 +124,16 @@ export function applyEvent(prev: AppState, evt: StreamEvent): AppState {
         a.currentTool = undefined;
         a.currentInputSummary = undefined;
       }
+      break;
+    }
+    case 'agent-arrived-at-desk': {
+      const a = ensureAgent(state, evt.sessionId, evt.agentName);
+      // Only promote if still en route. If agent-stop raced ahead and set idle,
+      // do not resurrect a working state.
+      if (a.state === 'walking_to_desk') {
+        a.state = 'working';
+      }
+      a.lastEventAt = evt.timestamp;
       break;
     }
     case 'agent-stop': {

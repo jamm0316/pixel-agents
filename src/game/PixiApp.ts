@@ -1412,6 +1412,7 @@ export type PixiAppHandle = {
   ): void;
   onSelect(fn: (sel: SelectPayload) => void): void;
   onPermissionChoice(fn: PermissionChoice): void;
+  onAgentArrivedAtDesk(fn: (sessionId: string, agentName: string) => void): void;
   setSelected(sel: SelectPayload): void;
   zoomIn(): void;
   zoomOut(): void;
@@ -1482,6 +1483,7 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
   let selected: SelectPayload = null;
   const selectListeners = new Set<(sel: SelectPayload) => void>();
   const permissionListeners = new Set<PermissionChoice>();
+  const arrivedListeners = new Set<(sessionId: string, agentName: string) => void>();
 
   const corridorBounds: Rect = {
     x: OFFICE_MARGIN + FACILITY_W,
@@ -1592,6 +1594,9 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
   }
   function notifyPermission(id: string, decision: 'allow' | 'deny' | 'always') {
     for (const fn of permissionListeners) fn(id, decision);
+  }
+  function notifyArrivedAtDesk(sessionId: string, agentName: string) {
+    for (const fn of arrivedListeners) fn(sessionId, agentName);
   }
 
   function slotWorldBounds(idx: number): { bounds: Rect; row: 0 | 1; col: number } {
@@ -1965,26 +1970,37 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
       const becomingWorking = ag.state === 'working' || ag.state === 'walking_to_desk';
       const wasWorking = prevState === 'working' || prevState === 'walking_to_desk';
 
+      // Walk a character to its desk, claiming the work activity slot.
+      // On physical arrival, notify the store so it can promote walking_to_desk -> working.
+      const routeToDesk = () => {
+        ch!.onActivityPreempt = undefined; // work itself never gets preempted
+        ch!.tryStartActivity('work');
+        const t = deskFor(room, agentName);
+        ch!.walkPath([room.approachInterior, t], () => {
+          // Only notify if we're still en route. If agent-stop raced ahead and
+          // flipped state to idle, do not fire the desk-arrival event.
+          if (ch!.state === 'walking_to_desk') {
+            notifyArrivedAtDesk(sid, agentName);
+          }
+        });
+      };
+
       if (!isNew && prevState !== ag.state) {
         if (becomingWorking && !wasWorking) {
-          // Enter work: claim the activity slot. work has the highest priority,
-          // so this always succeeds and preempts whatever was running.
-          ch.onActivityPreempt = undefined; // work itself never gets preempted
-          ch.tryStartActivity('work');
-          const t = deskFor(room, agentName);
-          ch.walkPath([room.approachInterior, t]);
+          // Enter work: start walking to desk.
+          routeToDesk();
         } else if (!becomingWorking && wasWorking) {
-          // Leave work: release the slot and resume autonomous behavior.
+          // Leave work (including mid-walk stop): release the slot and resume autonomous behavior.
           ch.endActivity('work');
           ch.pickWanderTarget();
         } else if (!becomingWorking) {
           // Other transitions that aren't work-related (rare).
           ch.pickWanderTarget();
         }
+        // If becomingWorking && wasWorking (e.g., walking_to_desk -> working promotion),
+        // do nothing here — the character is already on its way or seated.
       } else if (isNew && becomingWorking) {
-        ch.tryStartActivity('work');
-        const t = deskFor(room, agentName);
-        ch.walkPath([room.approachInterior, t]);
+        routeToDesk();
       }
 
       // Bubble priority: permission > tool intent > (chatter handled in tick)
@@ -2040,6 +2056,9 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
     },
     onPermissionChoice(fn) {
       permissionListeners.add(fn);
+    },
+    onAgentArrivedAtDesk(fn) {
+      arrivedListeners.add(fn);
     },
     setSelected(sel) {
       selected = sel;
