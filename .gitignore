@@ -3,3 +3,10 @@ dist
 .vite
 *.log
 .DS_Store
+.idea/
+.vscode/
+*.pid
+*.swp
+.env
+.env.local
+.env.*.local

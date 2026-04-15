@@ -118,7 +118,7 @@ function readSubagentMeta(jsonlPath: string): { agentType: string; description?:
 }
 
 function deriveCwdFromMainPath(filePath: string): string | null {
-  // Encoded path: -Users-evan-... → /Users/evan/...
+  // Encoded path: -Users-<user>-... → /Users/<user>/...
   // It's NOT 1:1 reversible because actual paths can contain '-'. The transcript file
   // itself stores cwd in its content, so we prefer that. This is a fallback.
   const parts = filePath.split('/');

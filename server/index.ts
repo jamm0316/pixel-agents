@@ -64,7 +64,12 @@ function getPendingList(): PermissionRequest[] {
 // ---------- HTTP app ----------
 
 const app = new Hono();
-app.use('*', cors());
+app.use(
+  '*',
+  cors({
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  })
+);
 
 app.get('/api/sessions', (c) => c.json(watcher.getSnapshot()));
 app.get('/api/ping', (c) => c.json({ ok: true, t: Date.now() }));
