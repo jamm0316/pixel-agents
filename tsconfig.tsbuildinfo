@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/store.ts","./src/types.ts","./src/game/pixiapp.ts","./src/game/constants.ts","./src/game/korean.ts","./src/game/sprites.ts","./src/panel/detailpanel.tsx","./server/agents-loader.ts","./server/index.ts","./server/types.ts","./server/watcher.ts","./vite.config.ts"],"version":"5.9.3"}
