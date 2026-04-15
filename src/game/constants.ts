@@ -7,8 +7,8 @@ export const OFFICE_SLOTS = OFFICE_COLS * OFFICE_ROWS;
 
 // Room interior dimensions (walls drawn inside these bounds, 2px thick)
 export const ROOM_W = 220;
-export const ROOM_H = 150;
-export const CORRIDOR_H = 64;
+export const ROOM_H = 225;
+export const CORRIDOR_H = 96;
 export const DOOR_W = 28;
 
 // Facility rooms (bathroom, ping-pong) flank the corridor at its left and right ends.
