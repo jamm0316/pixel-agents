@@ -1,7 +1,7 @@
 # pixel-agents
 
 Claude Code 세션의 서브에이전트들을 **도트 오피스**로 시각화하고, 도구 실행 권한을 브라우저 UI에서 승인할 수 있는 관찰/게이팅 도구.
-<img width="1791" height="1004" alt="image" src="https://github.com/user-attachments/assets/1eb7b489-0c7c-4309-8b05-541d92dfb07b" />
+<img width="1507" height="820" alt="image" src="https://github.com/user-attachments/assets/9e985717-2cca-4915-8410-1386581cdc67" />
 
 - 메인 세션 + 서브에이전트들의 활동을 PixiJS 픽셀 캐릭터로 표시
 - `PreToolUse` 훅으로 도구 실행을 가로채 브라우저에서 승인/거부
