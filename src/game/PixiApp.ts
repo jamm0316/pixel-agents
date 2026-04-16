@@ -21,10 +21,17 @@ import {
   PALETTE,
   WALK_SPEED,
   AGENT_COLORS,
+  LAPTOPS_PER_SIDE,
+  LAPTOPS_PER_ROOM,
+  LAPTOP_W,
+  LAPTOP_H,
+  TABLE_THICKNESS,
 } from './constants';
 import {
   drawCharacter,
-  drawDesk,
+  drawLaptopClosed,
+  drawLaptopOpen,
+  drawSideTable,
   drawCouch,
   drawPlant,
   drawRoomFloor,
@@ -36,6 +43,7 @@ import {
   drawPingPong,
   drawOutdoorPatch,
 } from './sprites';
+import { LaptopBank, LaptopSlotIndex, shouldDrawLaptopOpen } from './activity';
 import {
   formatIntent,
   formatHandoff,
@@ -116,6 +124,8 @@ class Character {
   label: Text;
   ring = new Graphics();
 
+  get id(): string { return this.agentName; }
+
   // Bubble visuals
   bubble = new Container();
   bubbleBg = new Graphics();
@@ -170,6 +180,9 @@ class Character {
   // Hook called when a higher-priority activity preempts the current one.
   // Set by whoever started the activity (manager or character itself).
   onActivityPreempt: ((preemptedBy: ActivityKind) => void) | undefined;
+
+  // 현재 점유 중인 랩탑 (work 활동 동안만 유효)
+  assignedLaptop: { roomId: string; index: LaptopSlotIndex } | null = null;
 
   // Dwell (stationary pause with optional callback)
   dwellTimer = 0;
@@ -1387,7 +1400,10 @@ type RoomSlot = {
   col: number;
   bounds: Rect; // room interior incl. walls, world coords
   container: Container; // holds dim overlay + signboard only (walls/floor/furniture drawn on shared layers)
-  deskPositions: { x: number; y: number }[];
+  laptopPositions: { x: number; y: number }[];
+  laptopStandPositions: { x: number; y: number }[];
+  laptopBank: LaptopBank;
+  laptopGfx: Graphics;
   idlePositions: { x: number; y: number }[];
   mainWanderZone: Rect;
   subWanderZone: Rect;
@@ -1716,21 +1732,42 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
     drawRoomWalls(wallsFx, bounds, { side: doorSide, center: doorCenterX, width: DOOR_W });
     container.addChild(wallsFx);
 
-    // Desks along the non-door long wall
-    const deskFx = new Graphics();
-    const deskPositions: { x: number; y: number }[] = [];
-    const deskSpacing = 62;
-    const deskCount = 3;
-    const deskRowW = deskCount * 44 + (deskCount - 1) * (deskSpacing - 44);
-    const startX = bounds.x + (bounds.w - deskRowW) / 2;
-    // Desks sit against the wall opposite the door
-    const deskY = doorSide === 'bottom' ? bounds.y + 12 : bounds.y + bounds.h - 42;
-    for (let i = 0; i < deskCount; i++) {
-      const dx = startX + i * deskSpacing;
-      drawDesk(deskFx, dx, deskY);
-      deskPositions.push({ x: dx + 14, y: deskY + 16 });
+    // Side-wall tables with laptops along non-door long walls.
+    const laptopGfx = new Graphics();
+    const laptopPositions: { x: number; y: number }[] = [];
+    const laptopStandPositions: { x: number; y: number }[] = [];
+
+    const tableTopMargin = 18;
+    const tableBottomMargin = 50;
+    const tableY = doorSide === 'bottom'
+      ? bounds.y + tableTopMargin
+      : bounds.y + tableBottomMargin;
+    const tableLen = bounds.h - tableTopMargin - tableBottomMargin;
+    const leftTableX = bounds.x + 2;
+    const rightTableX = bounds.x + bounds.w - 2 - TABLE_THICKNESS;
+
+    const cell = tableLen / LAPTOPS_PER_SIDE;
+    for (let i = 0; i < LAPTOPS_PER_SIDE; i++) {
+      const cy = tableY + cell * i + cell / 2 - LAPTOP_H / 2;
+      const lx = leftTableX + Math.floor((TABLE_THICKNESS - LAPTOP_W) / 2);
+      laptopPositions.push({ x: lx, y: cy });
+      laptopStandPositions.push({
+        x: leftTableX + TABLE_THICKNESS + 2,
+        y: cy + LAPTOP_H / 2 - 10,
+      });
     }
-    container.addChild(deskFx);
+    for (let i = 0; i < LAPTOPS_PER_SIDE; i++) {
+      const cy = tableY + cell * i + cell / 2 - LAPTOP_H / 2;
+      const rx = rightTableX + Math.floor((TABLE_THICKNESS - LAPTOP_W) / 2);
+      laptopPositions.push({ x: rx, y: cy });
+      laptopStandPositions.push({
+        x: rightTableX - 16 - 2,
+        y: cy + LAPTOP_H / 2 - 10,
+      });
+    }
+
+    const laptopBank = new LaptopBank(LAPTOPS_PER_ROOM);
+    container.addChild(laptopGfx);
 
     // Couch + plants along the non-desk long wall (also opposite door? no — near the door side)
     const deco = new Graphics();
@@ -1814,7 +1851,10 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
       col,
       bounds,
       container,
-      deskPositions,
+      laptopPositions,
+      laptopStandPositions,
+      laptopBank,
+      laptopGfx,
       idlePositions,
       mainWanderZone,
       subWanderZone,
@@ -1863,14 +1903,46 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
 
   buildStaticOffice();
 
+  function redrawRoomLaptops(room: RoomSlot): void {
+    room.laptopGfx.clear();
+    const tableTopMargin = 18;
+    const tableBottomMargin = 50;
+    const tableY = room.doorSide === 'bottom'
+      ? room.bounds.y + tableTopMargin
+      : room.bounds.y + tableBottomMargin;
+    const tableLen = room.bounds.h - tableTopMargin - tableBottomMargin;
+    const leftTableX = room.bounds.x + 2;
+    const rightTableX = room.bounds.x + room.bounds.w - 2 - TABLE_THICKNESS;
+    drawSideTable(room.laptopGfx, leftTableX, tableY, TABLE_THICKNESS, tableLen);
+    drawSideTable(room.laptopGfx, rightTableX, tableY, TABLE_THICKNESS, tableLen);
+    for (let i = 0; i < room.laptopPositions.length; i++) {
+      const { x, y } = room.laptopPositions[i];
+      const occ = room.laptopBank.slotOccupant(i) as Character | null;
+      if (shouldDrawLaptopOpen(occ)) {
+        drawLaptopOpen(room.laptopGfx, x, y);
+      } else {
+        drawLaptopClosed(room.laptopGfx, x, y);
+      }
+    }
+  }
+
+  function releaseLaptop(ch: Character): void {
+    if (!ch.assignedLaptop) return;
+    const room = rooms.get(ch.assignedLaptop.roomId);
+    if (room) {
+      room.laptopBank.release(ch);
+      redrawRoomLaptops(room);
+    }
+    ch.assignedLaptop = null;
+  }
+
+  // 모든 방 초기 redraw (closed 상태)
+  for (const s of slots) redrawRoomLaptops(s);
+
   // Initial layout — fit the whole office into the current host size if possible.
   currentScale = fitScaleToHost();
   applyLayout();
 
-  function deskFor(room: RoomSlot, agentName: string): { x: number; y: number } {
-    const idx = stableIndex(agentName, room.deskPositions.length);
-    return room.deskPositions[idx] ?? room.deskPositions[0] ?? { x: 80, y: 80 };
-  }
   function stableIndex(s: string, mod: number): number {
     let h = 0;
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
@@ -1902,6 +1974,7 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
         rooms.delete(sid);
         for (const [key, ch] of characters) {
           if (key.startsWith(sid + ':')) {
+            releaseLaptop(ch);
             bathroom.evict(ch); // free slot/queue if occupied
             ch.container.destroy({ children: true });
             characters.delete(key);
@@ -1973,14 +2046,27 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
       // Walk a character to its desk, claiming the work activity slot.
       // On physical arrival, notify the store so it can promote walking_to_desk -> working.
       const routeToDesk = () => {
-        ch!.onActivityPreempt = undefined; // work itself never gets preempted
+        ch!.onActivityPreempt = undefined;
         ch!.tryStartActivity('work');
-        const t = deskFor(room, agentName);
-        ch!.walkPath([room.approachInterior, t], () => {
-          // Only notify if we're still en route. If agent-stop raced ahead and
-          // flipped state to idle, do not fire the desk-arrival event.
+        // 안전망: 이전 슬롯이 남아 있었다면 먼저 해제
+        releaseLaptop(ch!);
+        const idx = room.laptopBank.acquire(ch!);
+        if (idx === null) {
+          // 폴백: 빈 랩탑 없음 → work 포기, wander로 복귀
+          ch!.endActivity('work');
+          ch!.pickWanderTarget();
+          return;
+        }
+        ch!.assignedLaptop = { roomId: sid, index: idx };
+        // acquire 시점에는 redrawRoomLaptops를 호출하지 않는다.
+        // 랩탑은 캐릭터가 도착해서 working으로 승격한 시점에만 open으로 그려진다.
+        const stand = room.laptopStandPositions[idx];
+        ch!.walkPath([room.approachInterior, stand], () => {
           if (ch!.state === 'walking_to_desk') {
             notifyArrivedAtDesk(sid, agentName);
+            // store가 이 틱에서 walking_to_desk → working으로 승격한다.
+            // 동일 sync 프레임 내에서 redraw를 호출해 해당 슬롯을 open으로 그린다.
+            redrawRoomLaptops(room);
           }
         });
       };
@@ -1991,6 +2077,7 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
           routeToDesk();
         } else if (!becomingWorking && wasWorking) {
           // Leave work (including mid-walk stop): release the slot and resume autonomous behavior.
+          releaseLaptop(ch);
           ch.endActivity('work');
           ch.pickWanderTarget();
         } else if (!becomingWorking) {
@@ -2030,6 +2117,7 @@ export async function createPixiApp(host: HTMLElement): Promise<PixiAppHandle> {
     // Remove stale characters
     for (const [key, ch] of characters) {
       if (!seenChars.has(key)) {
+        releaseLaptop(ch);
         ch.container.destroy({ children: true });
         characters.delete(key);
       }

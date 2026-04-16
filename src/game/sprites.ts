@@ -1,5 +1,5 @@
 import { Graphics, Container } from 'pixi.js';
-import { PALETTE } from './constants';
+import { PALETTE, LAPTOP_W, LAPTOP_OPEN_SCREEN_H } from './constants';
 
 export type AgentColors = { hair: number; skin: number; shirt: number; pants: number };
 
@@ -90,26 +90,41 @@ function shadeDown(color: number): number {
 }
 
 // Room furniture
-export function drawDesk(g: Graphics, x: number, y: number) {
-  const w = 44;
-  const h = 28;
-  // Desk shadow
-  g.rect(x, y + h - 4, w, 4).fill(0x2a1a10);
-  // Desk top
-  g.rect(x, y + 4, w, 10).fill(PALETTE.deskTop);
-  g.rect(x, y + 4, w, 1).fill(0xa8724a);
-  // Desk legs
-  g.rect(x + 2, y + 14, 3, 12).fill(PALETTE.desk);
-  g.rect(x + w - 5, y + 14, 3, 12).fill(PALETTE.desk);
-  // Monitor
-  const mx = x + w / 2 - 8;
-  const my = y - 12;
-  g.rect(mx - 1, my - 1, 18, 14).fill(0x0a0a10);
-  g.rect(mx, my, 16, 12).fill(PALETTE.monitor);
-  g.rect(mx + 2, my + 2, 12, 8).fill(PALETTE.monitorOn);
-  // Stand
-  g.rect(x + w / 2 - 2, my + 13, 4, 3).fill(0x1a1a22);
-  g.rect(x + w / 2 - 5, my + 16, 10, 1).fill(0x1a1a22);
+
+export function drawLaptopClosed(g: Graphics, x: number, y: number): void {
+  g.rect(x, y + 1, LAPTOP_W, 9).fill(PALETTE.laptopBodyDark);
+  g.rect(x, y, LAPTOP_W, 9).fill(PALETTE.laptopBody);
+  g.rect(x, y, LAPTOP_W, 1).fill(PALETTE.monitor);
+  g.rect(x + 1, y + 8, 12, 1).fill(PALETTE.laptopBodyDark);
+}
+
+export function drawLaptopOpen(g: Graphics, x: number, y: number): void {
+  const screenH = LAPTOP_OPEN_SCREEN_H;
+  // 화면 (위)
+  g.rect(x, y - screenH, LAPTOP_W, screenH).fill(PALETTE.monitor);
+  g.rect(x + 1, y - screenH + 1, 12, screenH - 2).fill(PALETTE.monitorOn);
+  // 힌지
+  g.rect(x, y - 1, LAPTOP_W, 1).fill(PALETTE.laptopBodyDark);
+  // 베이스 (키보드)
+  g.rect(x, y, LAPTOP_W, 6).fill(PALETTE.laptopBody);
+  g.rect(x + 1, y + 5, 12, 1).fill(PALETTE.laptopBodyDark);
+  // 키보드 점 (3×2 도트)
+  for (let kx = 0; kx < 3; kx++) {
+    for (let ky = 0; ky < 2; ky++) {
+      g.rect(x + 3 + kx * 4, y + 1 + ky * 2, 2, 1).fill(PALETTE.laptopBodyDark);
+    }
+  }
+}
+
+export function drawSideTable(g: Graphics, x: number, y: number, w: number, h: number): void {
+  // 그림자
+  g.rect(x + 1, y + 1, w, h).fill(0x2a1a10);
+  // 상판
+  g.rect(x, y, w, h).fill(PALETTE.deskTop);
+  // 가장자리 음영
+  g.rect(x, y, 1, h).fill(PALETTE.desk);
+  g.rect(x, y + h - 1, w, 1).fill(PALETTE.desk);
+  g.rect(x + w - 1, y, 1, h).fill(PALETTE.desk);
 }
 
 export function drawCouch(g: Graphics, x: number, y: number) {

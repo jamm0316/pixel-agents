@@ -93,6 +93,57 @@ export class BathroomManager {
   }
 }
 
+export type LaptopSlotIndex = number;
+
+type LaptopSlotState = { index: LaptopSlotIndex; occupant: ActivityToken | null };
+
+export class LaptopBank {
+  private slots: LaptopSlotState[];
+
+  constructor(slotCount: number) {
+    this.slots = [];
+    for (let i = 0; i < slotCount; i++) {
+      this.slots.push({ index: i, occupant: null });
+    }
+  }
+
+  acquire(token: ActivityToken): LaptopSlotIndex | null {
+    const existing = this.slots.find((s) => s.occupant === token);
+    if (existing) return existing.index;
+    const free = this.slots.find((s) => s.occupant === null);
+    if (!free) return null;
+    free.occupant = token;
+    return free.index;
+  }
+
+  release(token: ActivityToken): void {
+    const slot = this.slots.find((s) => s.occupant === token);
+    if (slot) slot.occupant = null;
+  }
+
+  slotOccupant(index: LaptopSlotIndex): ActivityToken | null {
+    return this.slots[index]?.occupant ?? null;
+  }
+
+  occupiedIndices(): LaptopSlotIndex[] {
+    return this.slots.filter((s) => s.occupant !== null).map((s) => s.index);
+  }
+
+  slotCount(): number {
+    return this.slots.length;
+  }
+}
+
+export interface LaptopVisualOccupant {
+  state: 'idle' | 'walking_to_desk' | 'working' | 'walking_home' | string;
+}
+
+export function shouldDrawLaptopOpen(
+  occupant: LaptopVisualOccupant | null
+): boolean {
+  return occupant !== null && occupant.state === 'working';
+}
+
 /**
  * Minimal Character-like activity slot for unit testing tryStartActivity /
  * endActivity without pixi.js.

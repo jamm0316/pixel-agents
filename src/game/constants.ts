@@ -21,8 +21,14 @@ export const OFFICE_MARGIN = 10;
 export const OFFICE_W = OFFICE_COLS * ROOM_W + FACILITY_W * 2 + OFFICE_MARGIN * 2;
 export const OFFICE_H = OFFICE_ROWS * ROOM_H + CORRIDOR_H + OFFICE_MARGIN * 2;
 
-export const DESK_W = 44;
-export const DESK_H = 28;
+export const LAPTOP_W = 14;
+export const LAPTOP_H = 10;
+export const LAPTOP_OPEN_SCREEN_H = 12;
+
+export const TABLE_THICKNESS = 16;
+export const TABLE_INSET_FROM_WALL = 2;
+export const LAPTOPS_PER_SIDE = 3;
+export const LAPTOPS_PER_ROOM = LAPTOPS_PER_SIDE * 2;
 
 export const WALK_SPEED = 48;
 
@@ -49,6 +55,8 @@ export const PALETTE = {
   signText: 0xffe9a8,
   signTextDim: 0x6a6458,
   label: 0xffffff,
+  laptopBody: 0x4a4a55,
+  laptopBodyDark: 0x2a2a35,
 };
 
 // A palette of agent color schemes (hair, skin, shirt, pants)
